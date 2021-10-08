@@ -1,3 +1,9 @@
 *.sln
 *.pyproj
 *.vs
+venv/
+intents_chatbot_model.h5
+intents_classes.pkl
+intents_words.pkl
+data/seq2seq/
+__pycache__/
