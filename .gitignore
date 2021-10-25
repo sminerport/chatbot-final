@@ -7,3 +7,8 @@ intents_classes.pkl
 intents_words.pkl
 data/seq2seq/
 __pycache__/
+app (old).py
+data/twcs.csv
+glove.*
+intents_train (1).py
+intents_train (old).py

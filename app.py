@@ -27,6 +27,8 @@ from nltk.tokenize import casual_tokenize
 import joblib
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
 
 import nltk
 nltk.download('punkt')
@@ -82,12 +84,14 @@ class chatbot:
         self.vocabulary_path = os.path.join(seq2seq_path, 'vocabulary.pkl')
         self.reverse_vocabulary_path = os.path.join(seq2seq_path, 'reverse_vocabulary.pkl')
         self.count_vectorizer_path = os.path.join(seq2seq_path, 'count_vectorizer.pkl')
+        self.t_path = os.path.join(intents_path, 'tokenizer.pickle')
         self.UNK = 0
         self.PAD = 1
         self.START = 2
 
         # intent model variables
-        self.intent_load_model_from = os.path.join(intents_path, 'intents_chatbot_model.h5')
+        #update method of predict call when updating model
+        self.intent_load_model_from = os.path.join(intents_path, 'pretrained_embeddings.h5')
         self.intent_load_intents_from = os.path.join(intents_path, 'intents_job_intents.json')
         self.intent_load_classes = os.path.join(intents_path, 'intents_classes.pkl')
         self.intent_load_words = os.path.join(intents_path, 'intents_words.pkl')
@@ -287,6 +291,27 @@ class chatbot:
         out_df['Tweet out'] = output_responses
         return out_df
 
+    def convert_to_sequence(self, sentence):
+        print(f'Sentence 2: {sentence}')
+        print(f'Sentence list: {[sentence]}')
+        sequence = self.tkizer.texts_to_sequences([sentence])
+        
+        print(f'Initial Tokenization: {sequence}')
+        sequence = pad_sequences(sequence, maxlen=25)
+        print
+        #sentence_words = [lemmatizer.lemmatize(word.lower()) for word in sentence_words]
+        return sequence
+
+    # return bag of words array: 0 or 1 for each word in the bag that exists in the sentence
+    def word_embedding(self, sentence, intent_words, show_details=True):
+        # tokenize the pattern
+        # intent words = all words
+        print(f'Sentence 1: {sentence}')
+        sequence = self.convert_to_sequence(sentence)
+        # bag of words - matrix of N words, vocabulary matrix
+
+        return(sequence)
+    
     def clean_up_sentence(self, sentence):
         sentence_words = nltk.word_tokenize(sentence)
         sentence_words = [lemmatizer.lemmatize(word.lower()) for word in sentence_words]
@@ -307,18 +332,41 @@ class chatbot:
                         print('found in bag: %s' % w)
         return(np.array(bag))
 
-    def predict_class(self, sentence, model):
-        # filter predictions below a threshold
-        p = self.bow(sentence, self.intent_words, show_details=False)
-        res = model.predict(np.array([p]))[0]
-        ERROR_THRESHOLD = 0.25
-        results = [[i,r] for i,r in enumerate(res) if r>ERROR_THRESHOLD]
-        # sort by strength of probability
-        results.sort(key=lambda x: x[1], reverse=True)
-        return_list = []
-        for r in results:
-            return_list.append({'intent': self.intent_classes[r[0]], 'probability': str(r[1])})
-        return return_list
+    def predict_class(self, sentence, model, method):
+        if method == 'WE':
+            # filter predictions below a threshold
+            # sentence is usertext
+            # intent words are all the words
+            print(f'sentence: {sentence}')
+            sequence = self.word_embedding(sentence, self.intent_words, show_details=False)
+            print(f'final sequence: {sequence}')
+            res = model.predict(np.array(sequence))[0]
+            print(f'res: {res}')
+            ERROR_THRESHOLD = 0.25
+            results = [[i,r] for i,r in enumerate(res) if r>ERROR_THRESHOLD]
+            print(f'results: {results}')
+            # sort by strength of probability
+            results.sort(key=lambda x: x[1], reverse=True)
+            return_list = []
+            print(f'return_list: {return_list}')
+            for r in results:
+                return_list.append({'intent': self.intent_classes[r[0]], 'probability': str(r[1])})
+            print(f'return_list: {return_list}')
+            return return_list
+        
+        if method == 'BOW':
+            # filter predictions below a threshold
+            p = self.bow(sentence, self.intent_words, show_details=False)
+            res = model.predict(np.array([p]))[0]
+            ERROR_THRESHOLD = 0.25
+            results = [[i,r] for i,r in enumerate(res) if r>ERROR_THRESHOLD]
+            # sort by strength of probability
+            results.sort(key=lambda x: x[1], reverse=True)
+            return_list = []
+            for r in results:
+                return_list.append({'intent': self.intent_classes[r[0]], 'probability': str(r[1])})
+            return return_list
+
 
     def getResponse(self, ints, intents_json):
         tag = ints[0]['intent']
@@ -328,7 +376,7 @@ class chatbot:
                 result = random.choice(i['responses'])
                 break
             else:
-                result = 'Please input a different message.'
+                result = 'I do not understand. Please input a different message.'
         return result
 
     def string_clean(self, response_orig):
@@ -390,11 +438,12 @@ class chatbot:
             self.intent_intents = json.loads(open(self.intent_load_intents_from, encoding='cp1252').read())
             self.intent_words = pickle.load(open(self.intent_load_words,'rb'))
             self.intent_classes = pickle.load(open(self.intent_load_classes,'rb'))
+            self.tkizer = pickle.load(open(self.t_path,'rb'))
 
             while True:
                 try:
                     userText = request.args.get('msg')
-                    ints = self.predict_class(userText, intent_model)
+                    ints = self.predict_class(userText, intent_model, method='WE')
                     intent_response = self.getResponse(ints, self.intent_intents)
                     if (intent_response != 'help'):
                         return str(intent_response)
@@ -405,6 +454,8 @@ class chatbot:
 
                 except(KeyboardInterrupt, EOFError, SystemExit):
                     break
+
+        
 
 @app.route("/")
 def home():
