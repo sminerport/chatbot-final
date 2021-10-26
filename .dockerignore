@@ -1,0 +1,8 @@
+intents_train (1).py 
+app (old).py
+glove.840B.300d.txt
+glove.zip
+intents_train (1).py
+intents_train (old).py
+intents_train.py
+data\intents\BOW_embeddings.h5
