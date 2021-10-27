@@ -1,13 +1,12 @@
+# syntax=docker/dockerfile:1
+
 FROM python:3.9.4
 
-ENV APP_HOME /app
+WORKDIR /app
 
-COPY ./requirements.txt /app/requirements.txt
+COPY requirements.txt requirements.txt
+RUN pip3 install -r requirements.txt
 
-WORKDIR $APP_HOME
+COPY . .
 
-RUN pip install -r requirements.txt
-
-COPY . /app
-
-CMD [ "python3", "app.py" ]
+CMD [ "python3" , "app.py", "--host=0.0.0.0" ]

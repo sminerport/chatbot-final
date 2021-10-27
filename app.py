@@ -10,6 +10,8 @@ Original file is located at
 #!pip install flask-ngrok
 
 #from flask_ngrok import run_with_ngrok
+import os
+
 from flask import Flask, render_template, request
 import re
 import os
@@ -52,6 +54,8 @@ import nltk.data
 
 TEMPLATE = os.path.join(os.getcwd(), 'templates')
 STATIC = os.path.join(os.getcwd(), 'static')
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+
 
 #create flask app 
 app = Flask(__name__,
@@ -240,7 +244,7 @@ class chatbot:
 
     # Function to append the START indext to the response Y
     def include_start_token(self, Y):
-        print(Y.shape)
+        #print(Y.shape)
         Y = Y.reshape((Y.shape[0], Y.shape[1]))
         Y = np.hstack((self.START * np.ones((Y.shape[0], 1)), Y[:, :-1]))
         # Y = Y[:,:,np.newaxis]
@@ -292,13 +296,13 @@ class chatbot:
         return out_df
 
     def convert_to_sequence(self, sentence):
-        print(f'Sentence 2: {sentence}')
-        print(f'Sentence list: {[sentence]}')
+        #print(f'Sentence 2: {sentence}')
+        #print(f'Sentence list: {[sentence]}')
         sequence = self.tkizer.texts_to_sequences([sentence])
         
-        print(f'Initial Tokenization: {sequence}')
+        #print(f'Initial Tokenization: {sequence}')
         sequence = pad_sequences(sequence, maxlen=25)
-        print
+        #print
         #sentence_words = [lemmatizer.lemmatize(word.lower()) for word in sentence_words]
         return sequence
 
@@ -306,7 +310,7 @@ class chatbot:
     def word_embedding(self, sentence, intent_words, show_details=True):
         # tokenize the pattern
         # intent words = all words
-        print(f'Sentence 1: {sentence}')
+        #print(f'Sentence 1: {sentence}')
         sequence = self.convert_to_sequence(sentence)
         # bag of words - matrix of N words, vocabulary matrix
 
@@ -337,21 +341,21 @@ class chatbot:
             # filter predictions below a threshold
             # sentence is usertext
             # intent words are all the words
-            print(f'sentence: {sentence}')
+            #print(f'sentence: {sentence}')
             sequence = self.word_embedding(sentence, self.intent_words, show_details=False)
-            print(f'final sequence: {sequence}')
+            #print(f'final sequence: {sequence}')
             res = model.predict(np.array(sequence))[0]
-            print(f'res: {res}')
+            #print(f'res: {res}')
             ERROR_THRESHOLD = 0.25
             results = [[i,r] for i,r in enumerate(res) if r>ERROR_THRESHOLD]
-            print(f'results: {results}')
+            #print(f'results: {results}')
             # sort by strength of probability
             results.sort(key=lambda x: x[1], reverse=True)
             return_list = []
-            print(f'return_list: {return_list}')
+            #print(f'return_list: {return_list}')
             for r in results:
                 return_list.append({'intent': self.intent_classes[r[0]], 'probability': str(r[1])})
-            print(f'return_list: {return_list}')
+            #print(f'return_list: {return_list}')
             return return_list
         
         if method == 'BOW':
@@ -426,19 +430,6 @@ class chatbot:
             pd.DataFrame(test_responses).to_csv(self.outpath + 'output_response.csv', index=False)
      
         elif self.mode == 'inference':
-            #seq2seq model
-            model = load_model(self.load_model_from)
-            self.vocabulary = joblib.load(os.path.join(self.outpath, 'vocabulary.pkl'))
-            self.reverse_vocabulary = joblib.load(os.path.join(self.outpath, 'reverse_vocabulary.pkl'))
-            count_vectorizer = joblib.load(os.path.join(self.outpath, 'count_vectorizer.pkl'))
-            self.analyzer = count_vectorizer.build_analyzer()
-
-            #load intent model
-            intent_model = load_model(self.intent_load_model_from)
-            self.intent_intents = json.loads(open(self.intent_load_intents_from, encoding='cp1252').read())
-            self.intent_words = pickle.load(open(self.intent_load_words,'rb'))
-            self.intent_classes = pickle.load(open(self.intent_load_classes,'rb'))
-            self.tkizer = pickle.load(open(self.t_path,'rb'))
 
             while True:
                 try:
@@ -448,14 +439,30 @@ class chatbot:
                     if (intent_response != 'help'):
                         return str(intent_response)
                     elif (intent_response == 'help'):
-                        response = self.respond_to_input(model, userText)
+                        response = self.respond_to_input(seq2seq_model, userText)
                         response = self.string_clean(response)
                         return str(response)
 
                 except(KeyboardInterrupt, EOFError, SystemExit):
                     break
 
-        
+bot = chatbot()
+bot.mode = 'inference'
+
+#seq2seq model
+seq2seq_model = bot.create_model()
+seq2seq_model.load_weights(bot.load_model_from)
+bot.vocabulary = joblib.load(os.path.join(bot.outpath, 'vocabulary.pkl'))
+bot.reverse_vocabulary = joblib.load(os.path.join(bot.outpath, 'reverse_vocabulary.pkl'))
+count_vectorizer = joblib.load(os.path.join(bot.outpath, 'count_vectorizer.pkl'))
+bot.analyzer = count_vectorizer.build_analyzer()
+
+#load intent model
+intent_model = load_model(bot.intent_load_model_from)
+bot.intent_intents = json.loads(open(bot.intent_load_intents_from, encoding='cp1252').read())
+bot.intent_words = pickle.load(open(bot.intent_load_words,'rb'))
+bot.intent_classes = pickle.load(open(bot.intent_load_classes,'rb'))
+bot.tkizer = pickle.load(open(bot.t_path,'rb'))
 
 @app.route("/")
 def home():
@@ -463,10 +470,9 @@ def home():
 
 @app.route("/get")
 def get_bot_response():
-    obj = chatbot()
-    obj.mode = 'inference'
-    response = obj.main()
+    response = bot.main()
     return response
 
 if __name__ == "__main__":
-    app.run(debug = True, host = '0.0.0.0')
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
