@@ -31,6 +31,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
+import tensorflow as tf
 
 import nltk
 nltk.download('punkt')
@@ -47,6 +48,7 @@ import random
 # text clean up imports
 import textwrap
 import nltk.data
+from tensorflow_model_optimization.sparsity import keras as sparsity
 
 # fold paths when using Colab
 #TEMPLATE = '/content/drive/MyDrive/Colab Notebooks/chatbot-flask-simple/templates'
@@ -55,6 +57,21 @@ import nltk.data
 TEMPLATE = os.path.join(os.getcwd(), 'templates')
 STATIC = os.path.join(os.getcwd(), 'static')
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+#gpus = tf.config.list_physical_devices('GPU')
+#if gpus:
+#    for gpu in gpus:
+#        tf.config.experimental. \
+#            set_virtual_device_configuration(gpu,[tf.config. \
+#                                                  experimental. \
+#                                                  VirtualDeviceConfiguration(memory_limit=1000)])
+#import tensorflow as tf
+#gpus = tf.config.experimental.list_physical_devices('GPU')
+#if gpus:
+#  try:
+#    for gpu in gpus:
+#      tf.config.experimental.set_memory_growth(gpu, True)
+#  except RuntimeError as e:
+#    print(e)
 
 
 #create flask app 
@@ -450,8 +467,9 @@ bot = chatbot()
 bot.mode = 'inference'
 
 #seq2seq model
-seq2seq_model = bot.create_model()
-seq2seq_model.load_weights(bot.load_model_from)
+seq2seq_model = load_model(bot.load_model_from)
+#seq2seq_model = bot.create_model()
+#seq2seq_model.load_weights(bot.load_model_from)
 bot.vocabulary = joblib.load(os.path.join(bot.outpath, 'vocabulary.pkl'))
 bot.reverse_vocabulary = joblib.load(os.path.join(bot.outpath, 'reverse_vocabulary.pkl'))
 count_vectorizer = joblib.load(os.path.join(bot.outpath, 'count_vectorizer.pkl'))
